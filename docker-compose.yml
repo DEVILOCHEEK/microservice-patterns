@@ -4,7 +4,6 @@ services:
   user-db:
     image: postgres:15
     container_name: user-db
-    restart: always
     environment:
       POSTGRES_USER: user
       POSTGRES_PASSWORD: password
@@ -17,7 +16,6 @@ services:
   order-db:
     image: postgres:15
     container_name: order-db
-    restart: always
     environment:
       POSTGRES_USER: order
       POSTGRES_PASSWORD: password
@@ -30,7 +28,6 @@ services:
   shared-db:
     image: postgres:15
     container_name: shared-db
-    restart: always
     environment:
       POSTGRES_USER: shared
       POSTGRES_PASSWORD: password
@@ -40,6 +37,12 @@ services:
     volumes:
       - shared_data:/var/lib/postgresql/data
 
+  redis:
+    image: redis:7
+    container_name: redis
+    ports:
+      - "6379:6379"
+
   rabbitmq:
     image: rabbitmq:3-management
     container_name: rabbitmq
@@ -47,12 +50,7 @@ services:
       - "5672:5672"
       - "15672:15672"
 
-  redis:
-    image: redis:7
-    container_name: redis
-    ports:
-      - "6379:6379"
-
+  # Database per Service
   user-service:
     build: ./database_per_service/user_service
     ports:
@@ -67,6 +65,7 @@ services:
     depends_on:
       - order-db
 
+  # Shared Database
   shared-service:
     build: ./shared_db
     ports:
@@ -74,6 +73,7 @@ services:
     depends_on:
       - shared-db
 
+  # API Composition
   api-composition:
     build: ./api_composition
     ports:
@@ -82,6 +82,7 @@ services:
       - user-service
       - order-service
 
+  # Saga Pattern
   saga-order:
     build: ./saga_pattern/order_service
     ports:
@@ -103,26 +104,37 @@ services:
     depends_on:
       - rabbitmq
 
+  # CQRS
   cqrs-command:
     build: ./cqrs/command_service
     ports:
       - "8008:8000"
+    depends_on:
+      - redis
 
   cqrs-query:
     build: ./cqrs/query_service
     ports:
       - "8009:8000"
+    depends_on:
+      - redis
 
+  # Event Sourcing
   event-store:
     build: ./event_sourcing/event_store
     ports:
       - "8010:8000"
+    depends_on:
+      - redis
 
   event-read-model:
     build: ./event_sourcing/read_model
     ports:
       - "8011:8000"
+    depends_on:
+      - redis
 
+  # Sharding
   shard1-service:
     build: ./sharding/shard1_service
     ports:
@@ -137,6 +149,9 @@ services:
     build: ./sharding/router
     ports:
       - "8014:8000"
+    depends_on:
+      - shard1-service
+      - shard2-service
 
 volumes:
   user_data:
